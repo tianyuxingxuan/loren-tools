@@ -1,14 +1,15 @@
 .app-shell {
-  min-height: 100svh;
+  height: 100svh;
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0)),
     var(--app-bg);
+  overflow: hidden;
 }
 
 .tool-rail {
-  min-height: 100svh;
+  height: 100svh;
   padding: 22px 16px;
   background: #172421;
   color: #eef6f2;
@@ -16,6 +17,7 @@
   flex-direction: column;
   gap: 22px;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 .brand {
@@ -101,8 +103,11 @@
 }
 
 .workspace {
+  height: 100svh;
   min-width: 0;
   padding: 28px 28px 40vh;
+  overflow-y: auto;
+  scroll-behavior: smooth;
 }
 
 .workspace-header {
@@ -450,7 +455,7 @@
 
 .world-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
 }
 
@@ -499,16 +504,51 @@
   font-weight: 700;
 }
 
+.world-card-utc {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.world-card-china {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.world-card-japan {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.world-card-berlin {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.world-card-sydney {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.world-card-losAngeles {
+  grid-column: 1;
+  grid-row: 3;
+}
+
 @media (max-width: 1024px) {
   .app-shell {
+    min-height: 100svh;
+    height: auto;
     grid-template-columns: 1fr;
+    overflow: visible;
   }
 
   .tool-rail {
+    height: auto;
     min-height: 0;
     padding: 12px 14px;
     flex-direction: row;
     align-items: center;
+    overflow: visible;
   }
 
   .tool-nav {
@@ -524,7 +564,9 @@
   }
 
   .workspace {
+    height: auto;
     padding: 20px 14px 30vh;
+    overflow: visible;
   }
 
   .tool-section {
@@ -537,6 +579,11 @@
 
   .world-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .world-card {
+    grid-column: auto;
+    grid-row: auto;
   }
 }
 

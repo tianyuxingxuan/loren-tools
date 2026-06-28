@@ -30,6 +30,10 @@ type TimeZoneOption = {
   value: string
 }
 
+type WorldTimeZone = TimeZoneOption & {
+  id: 'utc' | 'china' | 'japan' | 'berlin' | 'sydney' | 'losAngeles'
+}
+
 const defaultFormat = 'yyyy-MM-dd HH:mm:ss'
 const defaultSourceTimeZone = 'UTC'
 const defaultTargetTimeZone = 'Europe/Berlin'
@@ -42,6 +46,15 @@ const timeZoneOptions: TimeZoneOption[] = [
   { label: '洛杉矶', value: 'America/Los_Angeles' },
   { label: '伦敦', value: 'Europe/London' },
   { label: '柏林', value: 'Europe/Berlin' },
+]
+
+const worldTimeZones: WorldTimeZone[] = [
+  { id: 'utc', label: 'UTC', value: 'UTC' },
+  { id: 'china', label: '中国/上海', value: 'Asia/Shanghai' },
+  { id: 'japan', label: '日本/东京', value: 'Asia/Tokyo' },
+  { id: 'berlin', label: '欧洲/柏林', value: 'Europe/Berlin' },
+  { id: 'sydney', label: '澳大利亚/悉尼', value: 'Australia/Sydney' },
+  { id: 'losAngeles', label: '美国/洛杉矶', value: 'America/Los_Angeles' },
 ]
 
 function App() {
@@ -369,11 +382,11 @@ function TimeZoneField({ label, value, onChange, options }: TimeZoneFieldProps) 
 function WorldTimeGrid({ now }: { now: Date }) {
   return (
     <div className="world-grid" aria-label="世界时间">
-      {timeZoneOptions.map((zone) => {
+      {worldTimeZones.map((zone) => {
         const clock = formatWorldClock(now, zone.value)
 
         return (
-          <article className="world-card" key={zone.value}>
+          <article className={`world-card world-card-${zone.id}`} key={zone.value}>
             <div className="world-card-header">
               <span>{zone.label}</span>
               <small>{clock.offset}</small>
