@@ -28,6 +28,8 @@ type ToolId = 'timestamp' | 'worldTime' | 'jsonFormatter'
 
 type PageWidthMode = 'default' | 'wide' | 'full'
 
+type JsonOutputView = 'edit' | 'tree'
+
 type TimeZoneOption = {
   label: string
   value: string
@@ -80,6 +82,8 @@ function App() {
   const [jsonInput, setJsonInput] = useState('')
   const [jsonOutput, setJsonOutput] = useState('')
   const [jsonError, setJsonError] = useState('')
+  const [jsonOutputView, setJsonOutputView] = useState<JsonOutputView>('edit')
+  const [jsonTreeVersion, setJsonTreeVersion] = useState(0)
   const [pageWidthMode, setPageWidthMode] = useState<PageWidthMode>(() => {
     const savedMode = window.localStorage.getItem(pageWidthStorageKey)
     return isPageWidthMode(savedMode) ? savedMode : 'wide'
@@ -173,6 +177,8 @@ function App() {
     setJsonInput('')
     setJsonOutput('')
     setJsonError('')
+    setJsonOutputView('edit')
+    setJsonTreeVersion(0)
     clearResult()
   }
 
@@ -212,9 +218,12 @@ function App() {
     if (formatResult.output) {
       setJsonOutput(formatResult.output)
       setJsonError('')
+      setJsonOutputView('tree')
+      setJsonTreeVersion((version) => version + 1)
     } else {
       setJsonOutput('')
       setJsonError(formatResult.error)
+      setJsonOutputView('edit')
     }
   }
 
@@ -456,16 +465,42 @@ function App() {
               </button>
             </div>
 
-            <label className="json-editor-panel">
-              <span>输出</span>
-              <textarea
-                className={jsonError ? 'has-error' : ''}
-                value={jsonError || jsonOutput}
-                readOnly
-                placeholder="格式化后的 JSON"
-                spellCheck={false}
-              />
-            </label>
+            <div className="json-editor-panel">
+              <div className="json-panel-header">
+                <span>输出</span>
+                <div className="json-view-toggle" aria-label="输出视图">
+                  <button
+                    className={jsonOutputView === 'edit' ? 'is-selected' : ''}
+                    type="button"
+                    onClick={() => setJsonOutputView('edit')}
+                  >
+                    编辑
+                  </button>
+                  <button
+                    className={jsonOutputView === 'tree' ? 'is-selected' : ''}
+                    type="button"
+                    onClick={() => setJsonOutputView('tree')}
+                  >
+                    折叠
+                  </button>
+                </div>
+              </div>
+
+              {jsonOutputView === 'tree' && !jsonError ? (
+                <JsonTreeOutput key={jsonTreeVersion} value={jsonOutput} />
+              ) : (
+                <textarea
+                  className={jsonError ? 'has-error' : ''}
+                  value={jsonError || jsonOutput}
+                  onChange={(event) => {
+                    setJsonOutput(event.target.value)
+                    setJsonError('')
+                  }}
+                  placeholder="格式化后的 JSON"
+                  spellCheck={false}
+                />
+              )}
+            </div>
           </div>
         </section>
       </main>
@@ -484,6 +519,16 @@ type JsonFormatResult = {
   output: string
   error: string
 }
+
+type JsonTreeSegment =
+  | {
+      type: 'text'
+      value: string
+    }
+  | {
+      type: 'json'
+      value: unknown
+    }
 
 function isPageWidthMode(value: string | null): value is PageWidthMode {
   return value === 'default' || value === 'wide' || value === 'full'
@@ -550,6 +595,50 @@ function stringifyJson(value: unknown) {
   return JSON.stringify(value, null, 2)
 }
 
+function parseJsonTreeSegments(source: string): JsonTreeSegment[] {
+  const segments: JsonTreeSegment[] = []
+  let cursor = 0
+
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index]
+
+    if (char !== '{' && char !== '[') {
+      continue
+    }
+
+    const end = findJsonSegmentEnd(source, index)
+
+    if (end === -1) {
+      continue
+    }
+
+    const candidate = source.slice(index, end)
+
+    try {
+      const parsed = JSON.parse(candidate) as unknown
+      const text = source.slice(cursor, index)
+
+      if (text) {
+        segments.push({ type: 'text', value: text })
+      }
+
+      segments.push({ type: 'json', value: parsed })
+      cursor = end
+      index = end - 1
+    } catch {
+      continue
+    }
+  }
+
+  const rest = source.slice(cursor)
+
+  if (rest) {
+    segments.push({ type: 'text', value: rest })
+  }
+
+  return segments
+}
+
 function findJsonSegmentEnd(source: string, start: number) {
   const stack: string[] = []
   let isInString = false
@@ -597,6 +686,95 @@ function findJsonSegmentEnd(source: string, start: number) {
   }
 
   return -1
+}
+
+function JsonTreeOutput({ value }: { value: string }) {
+  const segments = parseJsonTreeSegments(value)
+  const hasJson = segments.some((segment) => segment.type === 'json')
+
+  if (!value) {
+    return <div className="json-tree-view is-empty">暂无输出</div>
+  }
+
+  if (!hasJson) {
+    return <pre className="json-tree-view json-tree-text">{value}</pre>
+  }
+
+  return (
+    <div className="json-tree-view">
+      {segments.map((segment, index) =>
+        segment.type === 'json' ? (
+          <JsonNode key={`json-${index}`} value={segment.value} depth={0} />
+        ) : (
+          <pre className="json-tree-text" key={`text-${index}`}>
+            {segment.value}
+          </pre>
+        ),
+      )}
+    </div>
+  )
+}
+
+function JsonNode({ label, value, depth }: { label?: string; value: unknown; depth: number }) {
+  const [isOpen, setIsOpen] = useState(true)
+
+  if (!isJsonContainer(value)) {
+    return (
+      <div className="json-tree-leaf" style={{ paddingLeft: depth * 16 }}>
+        {label ? <span className="json-tree-key">{label}: </span> : null}
+        <span className={`json-tree-value ${getJsonValueClass(value)}`}>{formatJsonLeaf(value)}</span>
+      </div>
+    )
+  }
+
+  const isArray = Array.isArray(value)
+  const entries: Array<[string, unknown]> = isArray
+    ? value.map((item, index) => [String(index), item])
+    : Object.entries(value as Record<string, unknown>)
+  const openBracket = isArray ? '[' : '{'
+  const closeBracket = isArray ? ']' : '}'
+
+  return (
+    <details
+      className="json-tree-node"
+      open={isOpen}
+      onToggle={(event) => setIsOpen(event.currentTarget.open)}
+      style={{ marginLeft: depth * 16 }}
+    >
+      <summary>
+        {label ? <span className="json-tree-key">{label}: </span> : null}
+        <span className="json-tree-bracket">{entries.length === 0 ? `${openBracket}${closeBracket}` : openBracket}</span>
+      </summary>
+      {entries.length > 0 ? (
+        <>
+          <div className="json-tree-children">
+            {entries.map(([entryKey, entryValue]) => (
+              <JsonNode depth={depth + 1} key={entryKey} label={isArray ? undefined : entryKey} value={entryValue} />
+            ))}
+          </div>
+          <div className="json-tree-close" style={{ paddingLeft: 16 }}>
+            {closeBracket}
+          </div>
+        </>
+      ) : null}
+    </details>
+  )
+}
+
+function isJsonContainer(value: unknown) {
+  return typeof value === 'object' && value !== null
+}
+
+function formatJsonLeaf(value: unknown) {
+  return JSON.stringify(value)
+}
+
+function getJsonValueClass(value: unknown) {
+  if (value === null) {
+    return 'is-null'
+  }
+
+  return `is-${typeof value}`
 }
 
 function TimeZoneField({ label, value, onChange, options }: TimeZoneFieldProps) {
