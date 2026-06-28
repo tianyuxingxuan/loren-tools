@@ -1,5 +1,6 @@
 import {
   ArrowRightLeft,
+  Braces,
   CalendarClock,
   Check,
   Clipboard,
@@ -23,7 +24,9 @@ type ConvertResult = {
   target: TimeView
 }
 
-type ToolId = 'timestamp' | 'worldTime'
+type ToolId = 'timestamp' | 'worldTime' | 'jsonFormatter'
+
+type PageWidthMode = 'default' | 'wide' | 'full'
 
 type TimeZoneOption = {
   label: string
@@ -37,6 +40,13 @@ type WorldTimeZone = TimeZoneOption & {
 const defaultFormat = 'yyyy-MM-dd HH:mm:ss'
 const defaultSourceTimeZone = 'UTC'
 const defaultTargetTimeZone = 'Europe/Berlin'
+const pageWidthStorageKey = 'loren-tools-page-width'
+
+const pageWidthModes: Array<{ label: string; value: PageWidthMode }> = [
+  { label: '默认', value: 'default' },
+  { label: '较宽', value: 'wide' },
+  { label: '全宽', value: 'full' },
+]
 
 const timeZoneOptions: TimeZoneOption[] = [
   { label: 'UTC', value: 'UTC' },
@@ -67,6 +77,13 @@ function App() {
   const [isLoading, setIsLoading] = useState(false)
   const [now, setNow] = useState(() => new Date())
   const [activeTool, setActiveTool] = useState<ToolId>('timestamp')
+  const [jsonInput, setJsonInput] = useState('')
+  const [jsonOutput, setJsonOutput] = useState('')
+  const [jsonError, setJsonError] = useState('')
+  const [pageWidthMode, setPageWidthMode] = useState<PageWidthMode>(() => {
+    const savedMode = window.localStorage.getItem(pageWidthStorageKey)
+    return isPageWidthMode(savedMode) ? savedMode : 'wide'
+  })
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 1000)
@@ -74,9 +91,14 @@ function App() {
   }, [])
 
   useEffect(() => {
+    window.localStorage.setItem(pageWidthStorageKey, pageWidthMode)
+  }, [pageWidthMode])
+
+  useEffect(() => {
     const sections = [
       { id: 'timestamp-converter', tool: 'timestamp' as const },
       { id: 'world-time', tool: 'worldTime' as const },
+      { id: 'json-formatter', tool: 'jsonFormatter' as const },
     ]
     const observer = new IntersectionObserver(
       (entries) => {
@@ -148,6 +170,9 @@ function App() {
     setSourceTimeZone(defaultSourceTimeZone)
     setTargetTimeZone(defaultTargetTimeZone)
     setTimestamp(String(Math.trunc(Date.now() / 1000)))
+    setJsonInput('')
+    setJsonOutput('')
+    setJsonError('')
     clearResult()
   }
 
@@ -171,6 +196,26 @@ function App() {
     setActiveTool(tool)
     document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     window.history.replaceState(null, '', `#${sectionId}`)
+  }
+
+  function handleJsonFormat() {
+    const source = jsonInput.trim()
+
+    if (!source) {
+      setJsonOutput('')
+      setJsonError('请输入 JSON 数据')
+      return
+    }
+
+    const formatResult = formatJsonInput(source)
+
+    if (formatResult.output) {
+      setJsonOutput(formatResult.output)
+      setJsonError('')
+    } else {
+      setJsonOutput('')
+      setJsonError(formatResult.error)
+    }
   }
 
   return (
@@ -203,6 +248,15 @@ function App() {
             <Globe2 size={18} />
             世界时间
           </button>
+          <button
+            className={`tool-nav-item ${activeTool === 'jsonFormatter' ? 'is-active' : ''}`}
+            type="button"
+            aria-current={activeTool === 'jsonFormatter' ? 'page' : undefined}
+            onClick={() => navigateToTool('jsonFormatter', 'json-formatter')}
+          >
+            <Braces size={18} />
+            JSON 解析
+          </button>
         </nav>
 
         <div className="server-pill">
@@ -211,30 +265,49 @@ function App() {
         </div>
       </aside>
 
-      <main className="workspace">
+      <main className={`workspace width-${pageWidthMode}`}>
         <header className="workspace-header">
           <div>
             <p className="eyebrow">Time Toolkit</p>
             <h1>loren-tools</h1>
           </div>
           <div className="header-actions">
-            <button className="ghost-button" type="button" onClick={() => fillCurrentTime()}>
-              <Clock3 size={17} />
-              当前时间
-            </button>
-            <button className="ghost-button" type="button" onClick={resetForm}>
-              <RotateCcw size={17} />
-              重置
-            </button>
+            <div className="page-width-control" aria-label="页宽设置">
+              <span>页宽</span>
+              <div className="page-width-options">
+                {pageWidthModes.map((mode) => (
+                  <button
+                    className={pageWidthMode === mode.value ? 'is-selected' : ''}
+                    key={mode.value}
+                    type="button"
+                    onClick={() => setPageWidthMode(mode.value)}
+                  >
+                    {mode.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </header>
 
         <section className="tool-section" id="timestamp-converter">
-          <div className="tool-section-header">
-            <span className="section-index">01</span>
-            <div>
-              <p className="eyebrow">Converter</p>
-              <h2>时间戳转换</h2>
+          <div className="tool-section-header has-actions">
+            <div className="tool-section-title">
+              <span className="section-index">01</span>
+              <div>
+                <p className="eyebrow">Converter</p>
+                <h2>时间戳转换</h2>
+              </div>
+            </div>
+            <div className="section-actions">
+              <button className="ghost-button" type="button" onClick={() => fillCurrentTime()}>
+                <Clock3 size={17} />
+                当前时间
+              </button>
+              <button className="ghost-button" type="button" onClick={resetForm}>
+                <RotateCcw size={17} />
+                重置
+              </button>
             </div>
           </div>
 
@@ -352,6 +425,49 @@ function App() {
 
           <WorldTimeGrid now={now} />
         </section>
+
+        <section className="tool-section json-tool-section" id="json-formatter">
+          <div className="tool-section-header">
+            <span className="section-index">03</span>
+            <div>
+              <p className="eyebrow">JSON Formatter</p>
+              <h2>JSON 解析</h2>
+            </div>
+          </div>
+
+          <div className="json-formatter-grid" aria-label="JSON 解析工具">
+            <label className="json-editor-panel">
+              <span>输入</span>
+              <textarea
+                value={jsonInput}
+                onChange={(event) => {
+                  setJsonInput(event.target.value)
+                  setJsonOutput('')
+                  setJsonError('')
+                }}
+                placeholder='{"name":"loren-tools","enabled":true}'
+                spellCheck={false}
+              />
+            </label>
+
+            <div className="json-action-column">
+              <button className="primary-button json-format-button" type="button" onClick={handleJsonFormat}>
+                格式化
+              </button>
+            </div>
+
+            <label className="json-editor-panel">
+              <span>输出</span>
+              <textarea
+                className={jsonError ? 'has-error' : ''}
+                value={jsonError || jsonOutput}
+                readOnly
+                placeholder="格式化后的 JSON"
+                spellCheck={false}
+              />
+            </label>
+          </div>
+        </section>
       </main>
     </div>
   )
@@ -362,6 +478,125 @@ type TimeZoneFieldProps = {
   value: string
   onChange: (value: string) => void
   options: Array<{ label: string; value: string }>
+}
+
+type JsonFormatResult = {
+  output: string
+  error: string
+}
+
+function isPageWidthMode(value: string | null): value is PageWidthMode {
+  return value === 'default' || value === 'wide' || value === 'full'
+}
+
+function formatJsonInput(source: string): JsonFormatResult {
+  try {
+    return {
+      output: stringifyJson(JSON.parse(source) as unknown),
+      error: '',
+    }
+  } catch (fullParseError) {
+    const partialResult = formatEmbeddedJson(source)
+
+    if (partialResult.output !== source) {
+      return {
+        output: partialResult.output,
+        error: '',
+      }
+    }
+
+    return {
+      output: '',
+      error: fullParseError instanceof Error ? fullParseError.message : 'JSON 解析失败',
+    }
+  }
+}
+
+function formatEmbeddedJson(source: string) {
+  let output = ''
+  let cursor = 0
+
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index]
+
+    if (char !== '{' && char !== '[') {
+      continue
+    }
+
+    const end = findJsonSegmentEnd(source, index)
+
+    if (end === -1) {
+      continue
+    }
+
+    const candidate = source.slice(index, end)
+
+    try {
+      output += source.slice(cursor, index)
+      output += stringifyJson(JSON.parse(candidate) as unknown)
+      cursor = end
+      index = end - 1
+    } catch {
+      continue
+    }
+  }
+
+  return {
+    output: output + source.slice(cursor),
+  }
+}
+
+function stringifyJson(value: unknown) {
+  return JSON.stringify(value, null, 2)
+}
+
+function findJsonSegmentEnd(source: string, start: number) {
+  const stack: string[] = []
+  let isInString = false
+  let isEscaped = false
+
+  for (let index = start; index < source.length; index += 1) {
+    const char = source[index]
+
+    if (isInString) {
+      if (isEscaped) {
+        isEscaped = false
+      } else if (char === '\\') {
+        isEscaped = true
+      } else if (char === '"') {
+        isInString = false
+      }
+
+      continue
+    }
+
+    if (char === '"') {
+      isInString = true
+      continue
+    }
+
+    if (char === '{') {
+      stack.push('}')
+      continue
+    }
+
+    if (char === '[') {
+      stack.push(']')
+      continue
+    }
+
+    if (char === '}' || char === ']') {
+      if (stack.pop() !== char) {
+        return -1
+      }
+
+      if (stack.length === 0) {
+        return index + 1
+      }
+    }
+  }
+
+  return -1
 }
 
 function TimeZoneField({ label, value, onChange, options }: TimeZoneFieldProps) {
