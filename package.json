@@ -1,0 +1,36 @@
+{
+  "name": "loren-tools",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:client": "vite --host 0.0.0.0",
+    "dev:server": "tsx watch server/index.ts",
+    "build": "tsc -b && tsc -p tsconfig.server.json && vite build",
+    "lint": "oxlint",
+    "preview": "vite preview --host 0.0.0.0",
+    "start": "node dist-server/index.js",
+    "start:http": "powershell -ExecutionPolicy Bypass -File scripts/start-http.ps1",
+    "stop:http": "powershell -ExecutionPolicy Bypass -File scripts/stop-http.ps1",
+    "setup:domain": "powershell -ExecutionPolicy Bypass -File scripts/add-local-domain.ps1"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "lucide-react": "^1.21.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.13.2",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.2",
+    "concurrently": "^10.0.3",
+    "oxlint": "^1.69.0",
+    "tsx": "^4.22.4",
+    "typescript": "~6.0.2",
+    "vite": "^8.1.0"
+  }
+}
